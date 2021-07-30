@@ -1,0 +1,20 @@
+[package]
+name = "rust-doh"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+base64 = "0.13"
+clap = "2"
+domain = { version = "0.6", features = ["resolv"] }
+env_logger = "0.9"
+futures = "0.3"
+hyper = { version = "0.14", features = ["full"] }
+log = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.6", features = ["codec"] }
+url = "2.2"
