@@ -1,44 +1,42 @@
 use clap::{App, Arg};
 use serde::Deserialize;
+use uriparse::{Host, URI};
 
+use std::convert::TryFrom;
 use std::error::Error as StdError;
 use std::fmt;
 use std::fs::File;
 use std::io::BufReader;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 
 type Error = Box<dyn StdError>;
 
 #[derive(Debug, Clone)]
-struct EnumError {
-    value: String,
+struct InvalidValue {
+    value_type: &'static str,
+    invalid_value: String,
 }
 
-impl EnumError {
-    fn new(invalid_value: String) -> EnumError {
-        EnumError {
-            value: invalid_value,
+impl InvalidValue {
+    fn new(value_type: &'static str, invalid_value: String) -> InvalidValue {
+        InvalidValue {
+            value_type: value_type,
+            invalid_value: invalid_value,
         }
     }
 }
 
-impl fmt::Display for EnumError {
+impl fmt::Display for InvalidValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "invalid enum value: {}", self.value)
+        write!(f, "invalid {}: {}", self.value_type, self.invalid_value)
     }
 }
-impl StdError for EnumError {}
-
-#[derive(Deserialize)]
-struct JsonDnsServer {
-    address: String,
-    transport: Option<String>,
-}
+impl StdError for InvalidValue {}
 
 #[derive(Deserialize)]
 struct JsonConfig {
     listen: String,
-    dns_servers: Option<Vec<JsonDnsServer>>,
+    dns_servers: Option<Vec<String>>,
 }
 
 pub enum DnsTransport {
@@ -77,17 +75,45 @@ impl Arguments {
             .into_iter()
             .flatten()
             .map(|serv| {
-                let address = serv.address.parse()?;
-                let transport = match serv.transport {
-                    None => Ok(DnsTransport::UDP),
-                    Some(transp) => match &transp[..] {
-                        "tcp" => Ok(DnsTransport::TCP),
-                        "udp" => Ok(DnsTransport::UDP),
-                        _ => Err(EnumError::new(transp)),
+                let parsed_uri = URI::try_from(serv.as_str())?;
+                match parsed_uri.path().to_string().as_str() {
+                    "" | "/" => Ok(()),
+                    _ => Err(InvalidValue::new(
+                        "The URI should not contain any path",
+                        serv.to_string(),
+                    )),
+                }?;
+                match parsed_uri.query() {
+                    Some(_) => Err(InvalidValue::new(
+                        "The URI should not contain any query",
+                        serv.to_string(),
+                    )),
+                    None => Ok(()),
+                }?;
+                match parsed_uri.fragment() {
+                    Some(_) => Err(InvalidValue::new(
+                        "The URI should not contain any fragment",
+                        serv.to_string(),
+                    )),
+                    None => Ok(()),
+                }?;
+
+                let host = match parsed_uri.host() {
+                    Some(h) => match h {
+                        Host::IPv4Address(ip4) => Ok(IpAddr::V4(*ip4)),
+                        Host::IPv6Address(ip6) => Ok(IpAddr::V6(*ip6)),
+                        _ => Err(InvalidValue::new("IP", serv.to_string())),
                     },
+                    None => Err(InvalidValue::new("IP", "<none>".into())),
+                }?;
+                let port = parsed_uri.port().unwrap_or(53);
+                let transport = match parsed_uri.scheme().as_str() {
+                    "tcp" => Ok(DnsTransport::TCP),
+                    "udp" | "" => Ok(DnsTransport::UDP),
+                    _ => Err(InvalidValue::new("scheme", serv.to_string())),
                 }?;
                 Ok(DnsServer {
-                    address: address,
+                    address: SocketAddr::new(host, port),
                     transport: transport,
                 })
             })

@@ -14,13 +14,13 @@ async fn main() {
     let args = Arguments::parse_cli().unwrap();
     info!("listen on {}", args.listen);
     info!(
-        "dns server: {}",
+        "dns servers: {}",
         args.dns_servers
             .iter()
             .map(|s| {
                 let transport: String = match s.transport {
-                    arguments::DnsTransport::UDP => "udp@",
-                    arguments::DnsTransport::TCP => "tcp@",
+                    arguments::DnsTransport::UDP => "udp://",
+                    arguments::DnsTransport::TCP => "tcp://",
                 }
                 .to_owned();
                 transport + &s.address.to_string()

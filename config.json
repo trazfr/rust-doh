@@ -1,13 +1,7 @@
 {
     "listen": "127.0.0.1:3000",
     "dns_servers": [
-        {
-            "address": "192.168.1.254:53",
-            "transport": "udp"
-        },
-        {
-            "address": "8.8.8.8:53",
-            "transport": "tcp"
-        }
+        "udp://192.168.1.254",
+        "tcp://8.8.8.8:53"
     ]
 }
